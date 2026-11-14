@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Backend Node.js
+weariq-backend/node_modules/
+weariq-backend/.env
