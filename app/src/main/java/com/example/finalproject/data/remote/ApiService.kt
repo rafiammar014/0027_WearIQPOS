@@ -21,6 +21,10 @@ interface ApiService {
 
     // ==================== AUTH ====================
     @Headers("No-Authentication: true")
+    @POST("auth/register")
+    suspend fun register(@Body request: com.example.finalproject.data.model.RegisterRequest): Response<LoginResponse>
+
+    @Headers("No-Authentication: true")
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 

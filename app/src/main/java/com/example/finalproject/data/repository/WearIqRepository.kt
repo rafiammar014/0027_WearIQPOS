@@ -34,10 +34,54 @@ class WearIqRepository(
                 )
                 Result.success(body)
             } else {
-                Result.failure(Exception("Login gagal (${response.code()}): ${response.message()}"))
+                val errorMsg = extractErrorMessage(response.errorBody()?.string()) ?: response.message()
+                Result.failure(Exception(errorMsg.ifBlank { "Email atau kata sandi tidak valid." }))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Gagal terhubung ke server backend: ${e.localizedMessage}"))
+        }
+    }
+
+    suspend fun register(
+        fullName: String,
+        username: String,
+        email: String,
+        password: String,
+        role: String
+    ): Result<LoginResponse> {
+        return try {
+            val request = com.example.finalproject.data.model.RegisterRequest(
+                fullName = fullName,
+                username = username,
+                email = email,
+                password = password,
+                role = role
+            )
+            val response = apiService.register(request)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                tokenManager.saveSession(
+                    accessToken = body.accessToken,
+                    refreshToken = body.refreshToken,
+                    role = body.user.role
+                )
+                Result.success(body)
+            } else {
+                val errorMsg = extractErrorMessage(response.errorBody()?.string()) ?: response.message()
+                Result.failure(Exception(errorMsg.ifBlank { "Registrasi gagal." }))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Gagal terhubung ke server backend: ${e.localizedMessage}"))
+        }
+    }
+
+    private fun extractErrorMessage(json: String?): String? {
+        if (json.isNullOrBlank()) return null
+        return try {
+            val jsonObject = com.google.gson.JsonParser.parseString(json).asJsonObject
+            jsonObject.get("message")?.asString
+        } catch (_: Exception) {
+            json
         }
     }
 

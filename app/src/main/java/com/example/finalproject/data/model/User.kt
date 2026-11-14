@@ -20,6 +20,19 @@ data class LoginRequest(
     val password: String
 )
 
+data class RegisterRequest(
+    @SerializedName("nama_lengkap")
+    val fullName: String,
+    @SerializedName("username")
+    val username: String,
+    @SerializedName("email")
+    val email: String,
+    @SerializedName("password")
+    val password: String,
+    @SerializedName("role")
+    val role: String = "KASIR"
+)
+
 data class LoginResponse(
     @SerializedName("access_token")
     val accessToken: String,
