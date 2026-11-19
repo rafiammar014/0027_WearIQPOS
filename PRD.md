@@ -9,236 +9,169 @@
 ---
 
 ## 1. STRICT AI AGENT GUARDRAILS (ATURAN WAJIB KODE & ACUAN PEDOMAN PAM 2026)
-1. **100% JETPACK COMPOSE (NO XML / NO VIEWS):** Seluruh layar, tata letak, komponen interaktif, dan dialog wajib dibangun murni menggunakan `@Composable`. Dilarang keras membuat atau menggunakan file layout XML (pelanggaran terhadap aturan ini berakibat nilai 0 sesuai pedoman).
-2. **NO ROOM DATABASE:** Sesuai Pedoman Proyek Akhir PAM 2026, penggunaan SQLite/Room di perangkat dilarang. Seluruh data entitas bisnis disimpan dan dikelola pada database server PostgreSQL melalui REST API (Retrofit2).
-3. **STRICT MVVM & STATE HOISTING:** UI (`Screen`) tidak boleh memanggil Retrofit/Repository secara langsung atau menyimpan *business logic*. Semua *state* dikelola di `ViewModel` menggunakan `StateFlow` dan sealed interface `UiState` (`Loading`, `Success`, `Error`).
-4. **JWT AUTHENTICATION & REFRESH TOKEN:** Wajib menggunakan OkHttp `Interceptor` untuk menyisipkan header `Authorization: Bearer <access_token>` dan `Authenticator` untuk otomatis memperbarui token menggunakan `refresh_token` saat menerima HTTP `401 Unauthorized`.
-5. **LOCAL FILE STORAGE (SAVE & READ):** Wajib mengimplementasikan fungsionalitas **simpan dan baca** file lokal pada memori perangkat (`Context.filesDir` / `MediaStore`) untuk foto produk katalog serta berkas struk digital (PDF/TXT) dan ekspor laporan (CSV).
-6. **INPUT VALIDATION & ZERO FATAL CRASH:** Setiap formulir input wajib memiliki validasi data yang ketat (misal: format email, konfirmasi password, nominal pembayaran >= total belanja, stok >= 0) guna mencegah crash atau bug fatal saat pengujian dan demo.
+1. **100% JETPACK COMPOSE (NO XML / NO VIEWS):** Seluruh layar, tata letak, komponen interaktif, dan dialog wajib dibangun murni menggunakan `@Composable`. Dilarang keras membuat atau menggunakan file layout XML.
+2. **NO ROOM DATABASE:** Dilarang menggunakan SQLite/Room di perangkat. Seluruh entitas bisnis dikelola pada PostgreSQL melalui REST API (Retrofit2). Penyimpanan lokal hanya diizinkan untuk `DataStore Preferences` (token & sesi) serta File Storage (foto, struk, CSV).
+3. **STRICT MVVM, STATE HOISTING & ONE-TIME EVENTS:** UI (`Screen`) dilarang memanggil Retrofit/Repository secara langsung. Semua state dikelola di `ViewModel` melalui `StateFlow<UiState<T>>` (`Idle`, `Loading`, `Success`, `Error`), sedangkan aksi sekali jalan (navigasi, Snackbar/Toast) wajib menggunakan `Channel` / `SharedFlow` (`UiEvent`) agar tidak terpicu ulang saat konfigurasi berubah.
+4. **JWT AUTHENTICATION & REFRESH TOKEN:** Wajib menggunakan OkHttp `Interceptor` (`Authorization: Bearer <access_token>`) dan `Authenticator` untuk otomatis memperbarui token via `POST /api/auth/refresh` saat menerima HTTP `401 Unauthorized` (dengan batas retry maksimal 1x agar tidak terjadi *infinite loop* saat refresh token kedaluwarsa, lalu otomatis logout ke halaman Login).
+5. **LOCAL FILE STORAGE (SAVE & READ):** Wajib mengimplementasikan simpan dan baca file lokal (`Context.filesDir`) untuk foto produk katalog, berkas struk digital (PDF/TXT), dan ekspor laporan (CSV). Wajib menyediakan *placeholder fallback* jika path file lokal tidak ditemukan.
+6. **EDGE-TO-EDGE, INPUT VALIDATION & ZERO FATAL CRASH:**
+    - Wajib menerapkan `statusBarsPadding()`, `navigationBarsPadding()`, dan `imePadding()` pada seluruh layar formulir agar tombol tidak terpotong *navigation bar* atau tertutup *keyboard*.
+    - Semua pencarian real-time wajib menerapkan `debounce(300L)` pada `Flow` di `ViewModel`.
+    - Konfigurasi `BASE_URL` wajib diletakkan di `BuildConfig` agar mudah berpindah antara Emulator (`10.0.2.2`) dan perangkat fisik (LAN IP).
 
 ---
 
-## 2. UI/UX DESIGN SYSTEM (ATURAN WARNA 60 - 30 - 10)
-Terapkan palet warna modern, kontras tinggi, dan elegan pada `ui/theme/Color.kt` dan `Theme.kt` (Dark Theme Default):
-- **60% Primary Background (`ObsidianBlack`):** `Color(0xFF0B0D12)` -> Digunakan untuk `background` dan kanvas layar utama.
-- **30% Secondary Surface (`MidnightNavy`):** `Color(0xFF161F33)` dan `MidnightNavyElevated = Color(0xFF1E2942)` -> Digunakan untuk `surface`, `surfaceVariant`, `Card`, `NavigationBar`, dan `OutlinedTextField`.
-- **10% Accent (`ElectricCyan`):** `Color(0xFF38BDF8)` dengan `onPrimary = Color(0xFF06131D)` -> Digunakan untuk tombol aksi utama (CTA), ikon tab aktif, chip filter aktif, indikator AI, dan fokus input.
-- **Text & Semantic Colors:**
-  - `TextPrimary`: `Color(0xFFF8FAFC)` (Teks judul dan isi utama)
-  - `TextSecondary`: `Color(0xFF94A3B8)` (Teks label, caption, dan placeholder)
-  - `SuccessEmerald`: `Color(0xFF10B981)` (Indikator stok aman, status pembayaran lunas)
-  - `ErrorRose`: `Color(0xFFF43F5E)` (Indikator stok menipis/kritis, tombol pembatalan, pesan validasi error)
-  - `WarningAmber`: `Color(0xFFF59E0B)` (Indikator peringatan dan stok mendekati batas minimum)
+## 2. UI/UX DESIGN SYSTEM (DARK NAVY, CREAM, RED + GLASSMORPHISM)
+Terapkan sistem visual editorial modern yang konsisten pada `ui/theme/Color.kt` dan `Theme.kt` (Dark Mode Default, Status Bar Light Content):
+- **60% Primary Canvas (`DarkNavy`):**
+    - `DarkNavy`: `Color(0xFF0B132B)` (Kanvas latar utama wajib solid di root setiap screen untuk mencegah *ghosting* transisi)
+    - `DarkNavySurface`: `Color(0xFF111B36)` (Dasar *bottom bar* dan *modal sheet*)
+- **30% Surface & Editorial Contrast (`Glassmorphism` & `Cream`):**
+    - `GlassSurface`: `Color(0x14F5EFE6)` dengan *border gradient* `1.dp` (`Cream 25%` -> transparan) untuk kartu Bento, input field, dan chip.
+    - `CreamSolid`: `Color(0xFFF5EFE6)` digunakan untuk **Hero Card Dashboard** (teks Dark Navy), indikator *Segmented Pill* aktif, dan teks utama (`TextPrimary`).
+    - `CreamMuted`: `Color(0xA6F5EFE6)` (65% alpha) untuk label, ikon input field, dan teks sekunder.
+- **10% Accent (`CrimsonRed`):**
+    - `CrimsonRed`: `Color(0xFFE63946)` untuk tombol CTA utama (Masuk, Buka Kasir, Bayar, Generate AI), indikator tab aktif, dan *badge* stok kritis.
+    - `CrimsonRedLoading`: `Color(0xB3E63946)` saat tombol dalam state loading.
+- **Semantic Colors:**
+    - `SuccessEmerald`: `Color(0xFF10B981)` (Stok aman, pembayaran lunas, tren naik)
+    - `WarningAmber`: `Color(0xFFF59E0B)` (Stok mendekati batas minimum)
+    - `ErrorRose`: `Color(0xFFFF6B76)` (Pesan validasi error, stok kritis, pembatalan)
+- **Aturan Anti-Template:**
+    - Dilarang menggunakan emoji sistem (`👑`, `💼`, dll); gunakan `Icons.Rounded.*`.
+    - Layar Login/Daftar menggunakan header rata kiri tanpa kotak pembungkus besar.
+    - Dashboard menggunakan **Asymmetric Bento Grid** (Hero Card Cream + 2 Kartu Glass + AI Insight Banner + Ringkasan Transaksi Terakhir).
+    - **Floating Glass Bottom Navigation Bar** bersifat persisten di level `Scaffold` untuk 4 tab utama (Beranda, Kasir, Katalog, AI Insights — tab AI Insights disembunyikan untuk role `KASIR`).
 
 ---
 
-## 3. ROLE-BASED ACCESS CONTROL (AUTHORIZATION)
-Aplikasi mendukung 2 peran pengguna (*Role*) yang tersimpan dalam database dan dikembalikan melalui klaim JWT saat autentikasi:
+## 3. ROLE-BASED ACCESS CONTROL (UI & BACKEND ENFORCEMENT)
+Otorisasi wajib ditegakkan pada **dua lapis**: penyembunyian menu di UI Compose **dan** middleware `requireRole(['OWNER'])` di Express backend (mengembalikan `403 Forbidden` jika dilanggar).
 
 | Fitur / Hak Akses | Role: OWNER | Role: KASIR |
 | :--- | :---: | :---: |
 | **Login & Register Akun** | Ya | Ya |
-| **Dashboard Omzet & Statistik Penjualan** | Ya (Penuh) | Terbatas (Statistik Shift Kasir) |
-| **Kelola Pengguna & Staf (CRUDS Users)** | Ya (Penuh) | ❌ Diblokir |
+| **Dashboard Omzet & Statistik** | Penuh (Seluruh Toko) | Terbatas (Transaksi Shift Sendiri) |
+| **Kelola Pengguna & Staf (CRUDS Users)** | Ya (Penuh) | ❌ Diblokir (`403`) |
 | **Kelola Kategori Pakaian (CRUDS Categories)** | Ya (Penuh) | Hanya Lihat (Read Only) |
-| **Kelola Produk & Varian Baju (CRUDS Products)** | Ya (Penuh + Harga Modal) | Hanya Lihat & Cari (Tanpa Harga Modal) |
-| **Transaksi Kasir / POS (CRUDS Transactions)** | Ya | Ya (Fitur Utama Kasir) |
-| **Pembatalan / Hapus Transaksi** | Ya (Otoritas Penuh) | ❌ Butuh Otorisasi Owner |
-| **WearIQ AI Insights (Gemini 2.5 Flash)** | Ya (Penuh) | ❌ Diblokir |
+| **Kelola Produk & Varian (CRUDS Products)** | Ya (Penuh + `harga_modal`) | Lihat & Cari (`harga_modal` dihapus dari JSON) |
+| **Manajemen Restock Cepat** | Ya | ❌ Diblokir (`403`) |
+| **Transaksi Kasir / POS (CRUDS Transactions)** | Ya (Semua) | Create, Read, Search, Update Catatan |
+| **Pembatalan / Hapus Transaksi** | Ya (Otoritas Penuh) | ❌ Diblokir (`403`) |
+| **WearIQ AI Insights (Gemini 2.5 Flash)** | Ya (Penuh) | ❌ Diblokir (`403`) |
 | **Simpan & Baca Struk Digital (PDF/TXT)** | Ya | Ya |
-| **Ekspor & Baca Laporan Penjualan (CSV)** | Ya | ❌ Diblokir |
+| **Ekspor & Baca Laporan Penjualan (CSV)** | Ya | ❌ Diblokir (`403`) |
 
 ---
 
 ## 4. RELATIONAL DATABASE SCHEMA (POSTGRESQL - 5 ENTITAS UTAMA)
 
 ### Entitas 1: `users`
-Tabel manajemen staf dan pemilik toko:
 - `id`: SERIAL PRIMARY KEY
 - `nama_lengkap`: VARCHAR(100) NOT NULL
 - `username`: VARCHAR(50) UNIQUE NOT NULL
 - `email`: VARCHAR(100) UNIQUE NOT NULL
-- `password_hash`: TEXT NOT NULL
-- `role`: VARCHAR(20) NOT NULL (`'OWNER'` | `'KASIR'`)
+- `password_hash`: TEXT NOT NULL (bcrypt)
+- `role`: VARCHAR(20) NOT NULL CHECK (`role IN ('OWNER', 'KASIR')`)
+- `is_active`: BOOLEAN NOT NULL DEFAULT TRUE *(untuk Soft Delete jika user sudah memiliki riwayat transaksi)*
 - `refresh_token`: TEXT NULL
 - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ### Entitas 2: `categories`
-Tabel pengelompokan jenis pakaian:
 - `id`: SERIAL PRIMARY KEY
-- `nama_kategori`: VARCHAR(100) NOT NULL (Contoh: Kemeja, Kaos Polos, Celana Chino, Outerwear, Dress)
+- `nama_kategori`: VARCHAR(100) UNIQUE NOT NULL
 - `deskripsi`: TEXT NULL
 - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ### Entitas 3: `product_variants`
-Tabel varian pakaian (berelasi dengan `categories`):
 - `id`: SERIAL PRIMARY KEY
 - `category_id`: INT NOT NULL REFERENCES `categories(id)` ON DELETE RESTRICT
-- `kode_sku`: VARCHAR(50) UNIQUE NOT NULL (Contoh: `TSH-BLK-L-001`)
+- `kode_sku`: VARCHAR(50) UNIQUE NOT NULL
 - `nama_produk`: VARCHAR(150) NOT NULL
-- `ukuran`: VARCHAR(10) NOT NULL (`'S'`, `'M'`, `'L'`, `'XL'`, `'XXL'`)
+- `ukuran`: VARCHAR(10) NOT NULL (`'XS'`, `'S'`, `'M'`, `'L'`, `'XL'`, `'XXL'`)
 - `warna`: VARCHAR(50) NOT NULL
-- `harga_modal`: NUMERIC(12,2) NOT NULL
-- `harga_jual`: NUMERIC(12,2) NOT NULL
-- `stok`: INT NOT NULL DEFAULT 0
-- `batas_stok_min`: INT NOT NULL DEFAULT 5
-- `local_image_uri`: TEXT NULL (Path foto katalog pakaian di penyimpanan lokal perangkat)
+- `harga_modal`: NUMERIC(12,2) NOT NULL CHECK (`harga_modal >= 0`)
+- `harga_jual`: NUMERIC(12,2) NOT NULL CHECK (`harga_jual >= 0`)
+- `stok`: INT NOT NULL DEFAULT 0 CHECK (`stok >= 0`)
+- `batas_stok_min`: INT NOT NULL DEFAULT 5 CHECK (`batas_stok_min >= 0`)
+- `local_image_uri`: TEXT NULL
+- `is_active`: BOOLEAN NOT NULL DEFAULT TRUE *(mencegah error FK saat menghapus produk yang pernah terjual)*
 - `updated_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ### Entitas 4: `transactions` & `transaction_items`
-Tabel transaksi kasir dan rincian belanja pakaian:
 - **Tabel `transactions`:**
-  - `id`: SERIAL PRIMARY KEY
-  - `kode_invoice`: VARCHAR(50) UNIQUE NOT NULL (Contoh: `INV-20261114-001`)
-  - `user_id`: INT NOT NULL REFERENCES `users(id)` ON DELETE RESTRICT
-  - `nama_pelanggan`: VARCHAR(100) DEFAULT `'Umum'`
-  - `total_item`: INT NOT NULL
-  - `total_harga`: NUMERIC(12,2) NOT NULL
-  - `metode_pembayaran`: VARCHAR(30) NOT NULL (`'TUNAI'`, `'QRIS'`, `'DEBIT'`)
-  - `uang_bayar`: NUMERIC(12,2) NOT NULL
-  - `kembalian`: NUMERIC(12,2) NOT NULL
-  - `catatan`: TEXT NULL
-  - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    - `id`: SERIAL PRIMARY KEY
+    - `kode_invoice`: VARCHAR(50) UNIQUE NOT NULL (Format: `INV-YYYYMMDD-XXX`)
+    - `user_id`: INT NOT NULL REFERENCES `users(id)` ON DELETE RESTRICT
+    - `nama_pelanggan`: VARCHAR(100) DEFAULT `'Umum'`
+    - `total_item`: INT NOT NULL
+    - `total_harga`: NUMERIC(12,2) NOT NULL
+    - `metode_pembayaran`: VARCHAR(30) NOT NULL CHECK (`metode_pembayaran IN ('TUNAI', 'QRIS', 'DEBIT')`)
+    - `uang_bayar`: NUMERIC(12,2) NOT NULL
+    - `kembalian`: NUMERIC(12,2) NOT NULL
+    - `catatan`: TEXT NULL
+    - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 - **Tabel `transaction_items`:**
-  - `id`: SERIAL PRIMARY KEY
-  - `transaction_id`: INT NOT NULL REFERENCES `transactions(id)` ON DELETE CASCADE
-  - `variant_id`: INT NOT NULL REFERENCES `product_variants(id)` ON DELETE RESTRICT
-  - `qty`: INT NOT NULL
-  - `harga_satuan`: NUMERIC(12,2) NOT NULL
-  - `subtotal`: NUMERIC(12,2) NOT NULL
+    - `id`: SERIAL PRIMARY KEY
+    - `transaction_id`: INT NOT NULL REFERENCES `transactions(id)` ON DELETE CASCADE
+    - `variant_id`: INT NOT NULL REFERENCES `product_variants(id)` ON DELETE RESTRICT
+    - `qty`: INT NOT NULL CHECK (`qty > 0`)
+    - `harga_satuan`: NUMERIC(12,2) NOT NULL
+    - `subtotal`: NUMERIC(12,2) NOT NULL
 
 ### Entitas 5: `ai_insight_logs`
-Tabel rekaman analisis kecerdasan buatan berbasis Google Gemini API:
 - `id`: SERIAL PRIMARY KEY
 - `user_id`: INT NOT NULL REFERENCES `users(id)` ON DELETE RESTRICT
 - `tipe_insight`: VARCHAR(50) NOT NULL (`'RESTOCK_PREDICTION'`, `'BESTSELLER_TREND'`, `'REVENUE_SUMMARY'`)
 - `judul_insight`: VARCHAR(150) NOT NULL
-- `konteks_data_json`: JSONB NOT NULL (Ringkasan agregasi data stok & penjualan yang dianalisis)
-- `hasil_analisis_ai`: TEXT NOT NULL (Uraian rekomendasi naratif dari Gemini 2.5 Flash)
-- `catatan_owner`: TEXT NULL (Catatan tindak lanjut manual oleh pemilik toko)
+- `konteks_data_json`: JSONB NOT NULL
+- `hasil_analisis_ai`: TEXT NOT NULL
+- `catatan_owner`: TEXT NULL
 - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ---
 
-## 5. SPESIFIKASI 5 FITUR CRUDS PENUH (CREATE, READ, UPDATE, DELETE, SEARCH)
-
-Semua 5 fitur di bawah ini wajib menyediakan kelima aksi secara lengkap:
-1. **CRUDS Manajemen Pengguna (`Users` - Khusus Owner):**
-   - **Create:** Mendaftarkan akun kasir atau staf baru dengan username, email, nama lengkap, dan role.
-   - **Read:** Menampilkan daftar seluruh staf toko beserta role dan status akun.
-   - **Update:** Mengubah profil staf, memperbarui email, dan mengatur ulang role.
-   - **Delete:** Menghapus akun staf yang sudah dinonaktifkan.
-   - **Search:** Pencarian staf secara *real-time* berdasarkan nama lengkap, username, atau email.
-
+## 5. SPESIFIKASI 5 FITUR CRUDS PENUH & INTEGRITAS DATA
+1. **CRUDS Manajemen Pengguna (`Users` - Owner Only):**
+    - Create, Read, Update, Delete, Search (nama/username/email).
+    - **Proteksi:** Owner tidak bisa menghapus akunnya sendiri yang sedang login (`400 Bad Request`). Jika user pernah memproses transaksi, lakukan *soft delete* (`is_active = false`) agar riwayat transaksi tetap utuh.
 2. **CRUDS Kategori Pakaian (`Categories`):**
-   - **Create:** Menambahkan kategori pakaian baru (misal: "Kemeja Formal", "Outerwear").
-   - **Read:** Menampilkan katalog kategori pakaian lengkap dengan jumlah varian produk di dalamnya.
-   - **Update:** Memperbarui nama dan deskripsi kategori.
-   - **Delete:** Menghapus kategori pakaian (dengan proteksi validasi jika masih ada produk terikat).
-   - **Search:** Mencari kategori pakaian berdasarkan nama kategori.
-
-3. **CRUDS Produk & Varian Ukuran/Warna (`Product Variants`):**
-   - **Create:** Menambahkan varian pakaian baru (nama, SKU, ukuran, warna, harga modal, harga jual, stok, batas minimum) dan memilih foto produk lokal.
-   - **Read:** Menampilkan katalog baju dengan visual foto Coil, filter kategori, badge ukuran/warna, dan indikator warna stok (Emerald jika aman, Rose jika stok <= batas minimum).
-   - **Update:** Mengubah data produk, menambah/memperbarui stok (restock), menyesuaikan harga jual, atau memperbarui foto pakaian.
-   - **Delete:** Menghapus varian pakaian dari katalog.
-   - **Search:** Pencarian *multi-parameter* berdasarkan nama pakaian, kode SKU, ukuran, atau warna.
-
-4. **CRUDS Transaksi Penjualan Kasir (`Transactions`):**
-   - **Create:** Memilih varian produk ke keranjang belanja POS, menghitung total, input uang bayar, kalkulasi kembalian otomatis, dan menyimpan transaksi secara atomik (backend memotong stok produk secara otomatis).
-   - **Read:** Melihat riwayat transaksi penjualan beserta rincian item belanja dan invoice.
-   - **Update:** Memperbarui data catatan transaksi atau nama pelanggan pada invoice.
-   - **Delete:** Membatalkan/menghapus transaksi penjualan (backend secara otomatis mengembalikan jumlah stok produk yang dibatalkan).
-   - **Search:** Mencari riwayat transaksi berdasarkan nomor invoice atau nama pelanggan.
-
-5. **CRUDS Analisis & Prediksi AI (`AI Insight Logs` - Google Gemini API):**
-   - **Create (Generate):** Owner memicu analisis baru (Prediksi Restock, Tren Produk Terlaris, atau Ringkasan Omzet). Backend mengagregasi data transaksi & stok 30 hari terakhir, mengirim prompt terstruktur ke Google Gemini API (`gemini-2.5-flash`), dan menyimpan hasilnya.
-   - **Read:** Membaca daftar kartu wawasan AI dan membuka rincian teks analisis serta rekomendasi aksi.
-   - **Update:** Owner dapat memperbarui `judul_insight` dan menambahkan `catatan_owner` untuk dokumentasi strategi bisnis.
-   - **Delete:** Menghapus riwayat insight AI yang sudah tidak relevan.
-   - **Search:** Mencari wawasan AI berdasarkan kata kunci judul, tipe insight, atau isi rekomendasi.
+    - Create, Read (menyertakan `total_produk`), Update, Delete, Search.
+    - **Proteksi:** Jika kategori masih memiliki produk aktif, kembalikan `409 Conflict` dengan pesan ramah di UI.
+3. **CRUDS Produk & Varian (`Product Variants` + Restock Cepat):**
+    - Create (dengan foto lokal), Read (filter kategori, ukuran, & `low_stock`), Update (termasuk aksi *Restock* atomik), Delete (*soft delete* jika pernah terjual, *hard delete* jika belum), Search multi-parameter (nama, SKU, ukuran, warna).
+4. **CRUDS Transaksi Kasir (`Transactions`):**
+    - **Create (Atomik):** Menggunakan SQL Transaction (`BEGIN ... COMMIT`). Server memvalidasi ketersediaan stok (`stok >= qty`), menghitung ulang `subtotal`, `total_harga`, dan `kembalian` dari harga DB, lalu memotong stok. Jika ada 1 item stoknya kurang, seluruh transaksi di-*rollback* (`409 Conflict`).
+    - **Read & Search:** Daftar transaksi + pencarian invoice/nama pelanggan + detail item belanja.
+    - **Update:** Mengubah `nama_pelanggan` atau `catatan`.
+    - **Delete (Pembatalan Atomik - Owner Only):** Menghapus transaksi dalam SQL Transaction sekaligus mengembalikan (`+ qty`) seluruh stok `product_variants` terkait.
+5. **CRUDS Analisis & Prediksi AI (`AI Insight Logs` - Gemini 2.5 Flash):**
+    - **Create (Generate):** Backend mengagregasi data 30 hari terakhir (produk terlaris, omzet, stok <= batas minimum), mengirim prompt terstruktur ke `gemini-2.5-flash` (dengan instruksi output teks bersih/terstruktur tanpa simbol markdown berantakan), lalu menyimpan ke DB.
+    - **Read, Update (`judul_insight` & `catatan_owner`), Delete, Search.**
+    - **OkHttp Timeout:** Konfigurasi `readTimeout(35, TimeUnit.SECONDS)` khusus panggilan AI agar tidak mudah *SocketTimeoutException*.
 
 ---
 
 ## 6. FITUR PENYIMPANAN FILE LOKAL (SAVE & READ COMPLIANCE)
-Memenuhi persyaratan wajib materi ajar *File Storage* (simpan dan baca file pada penyimpanan internal perangkat):
-1. **Foto Katalog Produk (Internal Image Storage):**
-   - **Simpan:** Saat menambah/mengedit produk, foto diambil dari galeri/kamera via `ActivityResultContracts.GetContent()`, disalin ke `context.filesDir/product_images/<sku>.jpg`.
-   - **Baca:** Aplikasi membaca path file lokal tersebut dan menampilkannya pada komponen `@Composable` menggunakan library **Coil**.
-2. **Struk Digital Kasir (PDF / TXT Receipt):**
-   - **Simpan:** Pada halaman Detail Transaksi, tombol *"Simpan Struk Digital"* men-generate struk transaksi belanja ke direktori `context.filesDir/receipts/` (berupa PDF via `PdfDocument` atau teks struk terformat).
-   - **Baca:** Tombol *"Buka Struk Tersimpan"* membaca isi berkas struk tersebut dan menampilkannya di dalam layar *Receipt Viewer Composable* aplikasi.
-3. **Ekspor & Arsip Laporan Penjualan (CSV Export):**
-   - **Simpan:** Pada layar Dashboard Owner, tombol *"Ekspor Rekap (.csv)"* mengompilasi riwayat transaksi ke format CSV dan menyimpannya di direktori aplikasi.
-   - **Baca:** Layar *Arsip Laporan Lokal* membaca daftar file CSV yang pernah diekspor dan menampilkan isi tabelnya di UI.
+1. **Foto Katalog Produk:** Disimpan ke `context.filesDir/product_images/<sku>.jpg` via `ActivityResultContracts.GetContent()`. Dibaca menggunakan **Coil** dengan fallback ikon pakaian bila file tidak ditemukan.
+2. **Struk Digital Kasir (PDF/TXT):** Di-generate dari layar Detail Transaksi ke `context.filesDir/receipts/<kode_invoice>.pdf` (menggunakan `android.graphics.pdf.PdfDocument`) atau `.txt`, dan dapat dibaca kembali di layar *Receipt Viewer Composable* (beserta daftar struk tersimpan).
+3. **Ekspor & Arsip Laporan Penjualan (CSV - Owner Only):** Mengompilasi riwayat transaksi ke `context.filesDir/reports/laporan_<timestamp>.csv` dan menampilkan layar *Arsip Laporan Lokal* untuk membaca serta merender isi tabel CSV langsung di UI Compose.
 
 ---
 
-## 7. REST API ENDPOINTS CONTRACT (BACKEND SPECIFICATION)
-- **Autentikasi:**
-  - `POST /api/auth/register` -> Registrasi pengguna baru.
-  - `POST /api/auth/login` -> Login dengan email & password, mengembalikan `{ accessToken, refreshToken, user }`.
-  - `POST /api/auth/refresh` -> Memperbarui `accessToken` menggunakan `refreshToken`.
-  - `POST /api/auth/logout` -> Menghapus refresh token pada database server.
-- **Pengguna (`users`):**
-  - `GET /api/users?q=` -> List staf & pencarian.
-  - `POST /api/users` -> Tambah staf baru (Owner only).
-  - `PUT /api/users/:id` -> Edit staf (Owner only).
-  - `DELETE /api/users/:id` -> Hapus staf (Owner only).
-- **Kategori (`categories`):**
-  - `GET /api/categories?q=` -> List kategori & pencarian.
-  - `POST /api/categories` -> Tambah kategori (Owner only).
-  - `PUT /api/categories/:id` -> Edit kategori (Owner only).
-  - `DELETE /api/categories/:id` -> Hapus kategori (Owner only).
-- **Produk (`product_variants`):**
-  - `GET /api/products?q=&category_id=&ukuran=` -> List produk, filter kategori/ukuran, & pencarian.
-  - `POST /api/products` -> Tambah varian produk (Owner only).
-  - `PUT /api/products/:id` -> Update produk/stok (Owner only).
-  - `DELETE /api/products/:id` -> Hapus varian produk (Owner only).
-- **Transaksi (`transactions`):**
-  - `GET /api/transactions?q=` -> List riwayat transaksi & pencarian invoice.
-  - `POST /api/transactions` -> Simpan transaksi kasir baru (potong stok atomik).
-  - `PUT /api/transactions/:id` -> Update catatan / nama pelanggan.
-  - `DELETE /api/transactions/:id` -> Batalkan transaksi (kembalikan stok produk).
-- **AI Insights (`ai_insight_logs`):**
-  - `POST /api/ai/generate` -> Pemicu agregasi backend + panggilan Gemini API + insert log.
-  - `GET /api/ai/insights?q=&type=` -> List riwayat analisis AI.
-  - `PUT /api/ai/insights/:id` -> Edit judul / catatan owner.
-  - `DELETE /api/ai/insights/:id` -> Hapus log insight.
+## 7. REST API ENDPOINTS CONTRACT & RESPONSE ENVELOPE
+Seluruh endpoint wajib mengembalikan struktur JSON konsisten:
+```json
+{
+  "success": true,
+  "message": "Deskripsi singkat status",
+  "data": { }
+}
 
----
 
-## 8. STRUKTUR ARSITEKTUR KODE & PACKAGE (MVVM ANDROID)
-```text
-com.example.finalproject/
-├── data/
-│   ├── model/                  # Data classes: User, Category, ProductVariant, Transaction, AiInsightLog, DTOs
-│   ├── remote/                 # ApiClient, ApiService, AuthInterceptor, TokenAuthenticator
-│   └── repository/             # WearIqRepository (Single Source of Truth dari REST API)
-├── ui/
-│   ├── components/             # Reusable Composables (AppButton, AppTextField, ProductCard, CartItemRow, etc.)
-│   ├── navigation/             # Screen (Sealed class rute), WearIqNavGraph (NavHost & Routing)
-│   ├── screens/
-│   │   ├── auth/               # LoginScreen, RegisterScreen, AuthViewModel
-│   │   ├── dashboard/          # DashboardScreen (Owner/Kasir), DashboardViewModel
-│   │   ├── catalog/            # CatalogScreen, ProductFormScreen, CategoryScreen, CatalogViewModel
-│   │   ├── pos/                # PosScreen, CartScreen, TransactionHistoryScreen, ReceiptScreen, PosViewModel
-│   │   ├── restock/            # RestockScreen, RestockViewModel
-│   │   ├── ai_insight/         # AiInsightScreen, AiInsightDetailScreen, AiInsightViewModel
-│   │   └── users/              # UserManagementScreen, UserViewModel
-│   └── theme/                  # Color.kt (60-30-10 Dark Palette), Theme.kt, Type.kt
-├── utils/
-│   ├── TokenManager.kt         # DataStore Preferences khusus access_token, refresh_token, role
-│   └── FileStorageHelper.kt    # Helper simpan & baca foto lokal, PDF struk, dan CSV
-└── MainActivity.kt             # Single Activity, enableEdgeToEdge, Scaffold & WearIqNavGraph
-```
+## Rekomendasi Tambahan untuk Memperkuat Proyek & Demo
 
----
-
-## 9. KETENTUAN TEKNIS & CHECKLIST PENILAIAN (PEDOMAN PAM 2026)
-Sebagai pedoman evaluasi diri sebelum presentasi dan demo:
-- [x] **Format Repositori:** Nama repositori GitHub sesuai format `4NIMBelakang_NamaProject`.
-- [x] **Commit Bertahap (Minimal 30 Commit):** Pengerjaan dilakukan bertahap dan teratur dengan pesan commit deskriptif (Dilarang push "sekali jadi").
-- [x] **README.md Proyek:** Terdapat dokumentasi deskripsi aplikasi, panduan instalasi, dan checklist update progress fitur mingguan.
-- [x] **Bebas Crash / Bug Fatal:** Menangani seluruh kemungkinan error jaringan, token kedaluwarsa, dan form validation secara elegan.
-- [x] **Kesiapan Demo (15-30 Menit):** Aplikasi siap dijalankan di emulator/perangkat sebelum memasuki ruang ujian, mampu memaparkan alur login, 5 fitur CRUDS, dan integrasi AI secara runtut.
+* **Siapkan `seed.js` dengan Data 30 Hari Realistis:** Fitur unggulan Anda adalah **WearIQ AI Insights**. Jika database hanya berisi 1–2 transaksi saat ujian, jawaban Gemini akan terasa generik. Dengan *seeder* berisi pola penjualan nyata (misalnya *Kemeja Linen Putih M* laku keras dan stok sisa 2, sementara *Jaket Denim XL* sepi peminat), analisis prediksi restock dan tren busana dari Gemini akan terlihat sangat meyakinkan di depan penguji.
+* **Gunakan *Cart Bottom Sheet* di Layar Kasir (POS):** Daripada memindahkan kasir ke halaman baru (`CartScreen`) setiap kali mengecek keranjang, gunakan *sticky floating checkout bar* di bagian bawah layar POS (menampilkan `"3 Item • Rp 450.000 — Bayar"`) yang membuka `ModalBottomSheet` saat diketuk. Alur kasir jadi jauh lebih cepat dan hemat satu perpindahan layar.
+* **Tambahkan Pintu Akses Fitur Khusus Owner di Dashboard:** Karena `Floating Bottom Bar` hanya ideal memuat 4 tab (`Beranda`, `Kasir`, `Katalog`, `AI Insight`), sediakan tombol akses cepat di halaman **Beranda (Khusus Owner)** atau di *Menu Profil/Settings* untuk menuju **Manajemen Staf (`Users`)**, **Kelola Kategori**, dan **Arsip Laporan CSV** agar semua 5 fitur CRUDS dan File Storage mudah dijangkau dalam 1–2 ketukan saat demo.
+* **Pecah Target 30+ Commit Berdasarkan Modul:** Agar tidak menumpuk di akhir, jadikan setiap sub
