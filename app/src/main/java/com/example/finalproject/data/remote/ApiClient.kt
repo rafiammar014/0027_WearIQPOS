@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Singleton / Factory untuk menginisialisasi Retrofit Client beserta:
- * - HostFallbackInterceptor (otomatis mencoba 10.0.2.2, 127.0.0.1 via adb reverse, atau LAN IP jika salah satu diblokir firewall)
+ * - HostFallbackInterceptor (memprioritaskan 10.0.2.2 untuk emulator Android)
  * - AuthInterceptor (penyisipan JWT Access Token)
  * - TokenAuthenticator (auto-refresh Access Token menggunakan Refresh Token saat 401)
  * - HttpLoggingInterceptor (monitoring request & response API)
@@ -51,11 +51,11 @@ object ApiClient {
 
         val fallbackInterceptor = HostFallbackInterceptor()
 
-        // Client khusus untuk proses refresh token (tanpa Authenticator agar tidak rekursif)
+        // Client khusus untuk proses refresh token
         val refreshOkHttpClient = OkHttpClient.Builder()
             .addInterceptor(fallbackInterceptor)
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
             .build()
@@ -80,7 +80,7 @@ object ApiClient {
             .addInterceptor(authInterceptor)
             .addInterceptor(loggingInterceptor)
             .authenticator(tokenAuthenticator)
-            .connectTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
             .build()
@@ -95,41 +95,33 @@ object ApiClient {
 }
 
 /**
- * Interceptor pintar yang otomatis beralih host bila koneksi emulator ke host mengalami timeout
- * karena proteksi Windows Firewall atau perbedaan konfigurasi adapter jaringan emulator.
+ * HostFallbackInterceptor:
+ * Selalu mencoba 10.0.2.2 terlebih dahulu (karena 10.0.2.2 adalah IP gateway loopback emulator Android).
+ * Jika gagal, mencoba 127.0.0.1 (via adb reverse), lalu LAN IP jika ada perangkat fisik.
  */
 class HostFallbackInterceptor : Interceptor {
 
     companion object {
         private val CANDIDATE_HOSTS = listOf("10.0.2.2", "127.0.0.1", "192.168.104.158")
-
-        @Volatile
-        var activeHost: String = "10.0.2.2"
     }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         val originalUrl = originalRequest.url
 
-        val hostsToTry = linkedSetOf(activeHost).apply {
-            addAll(CANDIDATE_HOSTS)
-        }
-
         var lastException: IOException? = null
 
-        for (host in hostsToTry) {
+        for (host in CANDIDATE_HOSTS) {
             val newUrl = originalUrl.newBuilder().host(host).build()
             val newRequest = originalRequest.newBuilder().url(newUrl).build()
 
             try {
-                val response = chain.proceed(newRequest)
-                activeHost = host
-                return response
+                return chain.proceed(newRequest)
             } catch (e: IOException) {
                 lastException = e
             }
         }
 
-        throw lastException ?: IOException("Tidak dapat terhubung ke server pada host manapun: $hostsToTry")
+        throw lastException ?: IOException("Tidak dapat terhubung ke server backend di host: $CANDIDATE_HOSTS")
     }
 }
